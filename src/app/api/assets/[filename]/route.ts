@@ -6,7 +6,7 @@ const ASSETS_PATH = path.join(process.cwd(), 'data', 'assets', 'pictures');
 
 export async function GET(
   request: Request,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
     const { filename } = await params;
