@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar, { Category } from '@/components/Sidebar';
 import Editor from '@/components/Editor';
 import { cn } from '@/lib/utils';
-import { Plus, Clock, ChevronRight, ArrowLeft, Edit3, Save, Trash2 } from 'lucide-react';
+import { Plus, Clock, ChevronRight, ArrowLeft, Edit3, Save, Trash2, Pin } from 'lucide-react';
 
 export default function Home() {
   const [articles, setArticles] = useState<any[]>([]);
@@ -18,6 +18,33 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+
+  const fetchPinned = async () => {
+    try {
+      const res = await fetch('/api/pinned');
+      if (res.ok) setPinnedIds(await res.json());
+    } catch (err) {
+      console.error('Failed to fetch pinned', err);
+    }
+  };
+
+  const handleTogglePin = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch('/api/pinned', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPinnedIds(data.pinned);
+      }
+    } catch (err) {
+      console.error('Failed to toggle pin', err);
+    }
+  };
 
   const fetchArticles = async () => {
     try {
@@ -56,6 +83,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchArticles();
+    fetchPinned();
   }, []);
 
   const handleSelectArticle = async (id: string) => {
@@ -174,41 +202,67 @@ export default function Home() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {articles.length > 0 ? (
-                  articles.map((article) => (
-                    <div 
+                  [...articles].sort((a, b) => {
+                    const aPinned = pinnedIds.includes(a.id);
+                    const bPinned = pinnedIds.includes(b.id);
+                    if (aPinned && !bPinned) return -1;
+                    if (!aPinned && bPinned) return 1;
+                    return 0;
+                  }).map((article) => {
+                    const isPinned = pinnedIds.includes(article.id);
+                    return (
+                    <div
                       key={article.id}
                       onClick={() => handleSelectArticle(article.id)}
-                      className="group bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-lime-200 transition-all cursor-pointer flex flex-col justify-between h-64"
+                      className={cn(
+                        "group p-6 rounded-2xl border shadow-sm hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between h-64",
+                        isPinned
+                          ? "bg-lime-50/50 border-lime-200 ring-1 ring-lime-100"
+                          : "bg-white border-gray-100 hover:border-lime-200"
+                      )}
                     >
                       <div>
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center gap-2 text-lime-600">
-                            <Clock size={14} />
-                            <span className="text-xs font-bold uppercase tracking-wider">
-                              {new Date(article.date).toLocaleDateString()}
-                            </span>
+                            {isPinned && <Pin size={14} className="text-lime-500 fill-lime-500" />}
                           </div>
-                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
+                          <div className={cn(
+                            "flex gap-2 transition-opacity",
+                            isPinned ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                          )}>
+                            <button
+                              onClick={(e) => handleTogglePin(e, article.id)}
+                              className={cn(
+                                "p-2 rounded-full transition-colors",
+                                isPinned
+                                  ? "bg-lime-100 text-lime-600 hover:bg-lime-200"
+                                  : "bg-gray-50 text-gray-400 hover:bg-lime-50 hover:text-lime-600"
+                              )}
+                              title={isPinned ? "고정 해제" : "상단 고정"}
+                            >
+                              <Pin size={16} className={isPinned ? "fill-lime-600" : ""} />
+                            </button>
+                            <button
                               onClick={(e) => handleEditDirectly(e, article.id)}
                               className="p-2 bg-gray-50 text-gray-500 hover:bg-lime-50 hover:text-lime-600 rounded-full transition-colors"
                               title="수정하기"
                             >
                               <Edit3 size={16} />
                             </button>
-                                                      <button 
-                                                        onClick={(e) => handleDelete(e, article.id)}
-                                                        disabled={deletingId === article.id}
-                                                        className={cn(
-                                                          "p-2 rounded-full transition-colors",
-                                                          deletingId === article.id 
-                                                            ? "bg-red-100 text-red-600 animate-pulse cursor-not-allowed" 
-                                                            : "bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500"
-                                                        )}
-                                                        title={deletingId === article.id ? "삭제 중..." : "삭제하기"}
-                                                      >
-                                                        <Trash2 size={16} />
-                                                      </button>                          </div>
+                            <button
+                              onClick={(e) => handleDelete(e, article.id)}
+                              disabled={deletingId === article.id}
+                              className={cn(
+                                "p-2 rounded-full transition-colors",
+                                deletingId === article.id
+                                  ? "bg-red-100 text-red-600 animate-pulse cursor-not-allowed"
+                                  : "bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                              )}
+                              title={deletingId === article.id ? "삭제 중..." : "삭제하기"}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                         <h3 className="text-xl font-bold text-gray-800 group-hover:text-lime-600 transition-colors line-clamp-3 mb-4">
                           {article.title}
@@ -218,7 +272,8 @@ export default function Home() {
                         자세히 보기 <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="col-span-full py-24 text-center bg-white rounded-3xl border-2 border-dashed border-lime-100 flex flex-col items-center justify-center">
                     <button
@@ -252,16 +307,11 @@ export default function Home() {
                 </button>
               </div>
 
-              <h1 className="text-5xl font-black text-gray-900 leading-tight">{currentArticle.title}</h1>
-              <div className="flex items-center gap-4 text-sm text-gray-400 border-b border-gray-100 pb-8">
-                <span className="font-bold text-gray-500">
-                  {new Date(currentArticle.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
-                </span>
-              </div>
+              <h1 className="text-5xl font-black text-gray-900 leading-tight border-b border-gray-100 pb-8">{currentArticle.title}</h1>
 
-              <div 
+              <div
                 className="prose prose-slate max-w-none py-10 min-h-[500px]"
-                dangerouslySetInnerHTML={{ __html: currentArticle.content }}
+                dangerouslySetInnerHTML={{ __html: currentArticle.html || currentArticle.content }}
               />
             </div>
           ) : (

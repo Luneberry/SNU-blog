@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import matter from 'gray-matter';
 
-// 프로젝트 루트 기준 data 폴더 설정
 const ARTICLES_PATH = path.join(process.cwd(), 'data', 'article');
 
 export async function GET() {
@@ -13,15 +13,18 @@ export async function GET() {
 
     const files = fs.readdirSync(ARTICLES_PATH);
     const articles = files
-      .filter(file => file.endsWith('.json'))
+      .filter(file => file.endsWith('.md'))
       .map(file => {
-        const content = JSON.parse(fs.readFileSync(path.join(ARTICLES_PATH, file), 'utf8'));
+        const raw = fs.readFileSync(path.join(ARTICLES_PATH, file), 'utf8');
+        const { data } = matter(raw);
+        const id = file.replace('.md', '');
+        const date = data.date || new Date().toISOString();
         return {
-          id: file.replace('.json', ''),
-          title: content.title,
-          date: content.date,
-          year: new Date(content.date).getFullYear().toString(),
-          month: (new Date(content.date).getMonth() + 1).toString(),
+          id,
+          title: data.title || 'Untitled',
+          date,
+          year: new Date(date).getFullYear().toString(),
+          month: (new Date(date).getMonth() + 1).toString(),
         };
       });
 
@@ -35,24 +38,25 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
     const { id, title, content, date } = data;
-    
+
     if (!fs.existsSync(ARTICLES_PATH)) {
       fs.mkdirSync(ARTICLES_PATH, { recursive: true });
     }
 
-    const fileName = `${id || Date.now()}.json`;
-    const filePath = path.join(ARTICLES_PATH, fileName);
-    
-    const articleData = {
-      id: id || fileName.replace('.json', ''),
-      title,
-      content,
-      date: date || new Date().toISOString(),
-    };
+    const fileId = id || String(Date.now());
+    const filePath = path.join(ARTICLES_PATH, `${fileId}.md`);
 
-    fs.writeFileSync(filePath, JSON.stringify(articleData, null, 2));
+    const frontmatter = [
+      '---',
+      `title: "${(title || 'Untitled').replace(/"/g, '\\"')}"`,
+      `date: "${date || new Date().toISOString()}"`,
+      '---',
+    ].join('\n');
 
-    return NextResponse.json({ success: true, article: articleData });
+    const md = frontmatter + '\n\n' + (content || '');
+    fs.writeFileSync(filePath, md, 'utf8');
+
+    return NextResponse.json({ success: true, article: { id: fileId, title, date } });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to save article' }, { status: 500 });
   }

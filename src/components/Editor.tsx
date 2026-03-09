@@ -1,15 +1,8 @@
 'use client';
 
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { Color } from '@tiptap/extension-color';
-import { TextStyle } from '@tiptap/extension-text-style';
-import { Image } from '@tiptap/extension-image';
-import { 
-  Bold, Italic, List, ListOrdered, Heading1, Heading2, 
-  Image as ImageIcon, Save, Undo, Redo
-} from 'lucide-react';
-import React from 'react';
+import React, { useState } from 'react';
+import { Eye, Code, Save, Image as ImageIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface EditorProps {
   content: string;
@@ -17,8 +10,27 @@ interface EditorProps {
   onSave: () => void;
 }
 
-const MenuBar = ({ editor, onSave }: { editor: any; onSave: () => void }) => {
-  if (!editor) return null;
+function Editor({ content, onChange, onSave }: EditorProps) {
+  const [preview, setPreview] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
+
+  const handlePreview = async () => {
+    if (!preview) {
+      // Render markdown server-side
+      try {
+        const res = await fetch('/api/render-md', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        });
+        const data = await res.json();
+        setPreviewHtml(data.html);
+      } catch {
+        setPreviewHtml('<p style="color:red;">미리보기 실패</p>');
+      }
+    }
+    setPreview(!preview);
+  };
 
   const addImage = () => {
     const input = document.createElement('input');
@@ -37,9 +49,10 @@ const MenuBar = ({ editor, onSave }: { editor: any; onSave: () => void }) => {
           });
           const data = await res.json();
           if (data.success) {
-            editor.chain().focus().setImage({ src: data.url }).run();
+            const imgMd = `![${file.name}](${data.url})`;
+            onChange(content + '\n\n' + imgMd);
           }
-        } catch (err) {
+        } catch {
           alert('이미지 업로드에 실패했습니다.');
         }
       }
@@ -47,107 +60,62 @@ const MenuBar = ({ editor, onSave }: { editor: any; onSave: () => void }) => {
     input.click();
   };
 
-  return (
-    <div className="border-b border-gray-200 p-2 flex flex-wrap gap-2 bg-white sticky top-0 z-10 bg-white/80 backdrop-blur-md">
-      <div className="flex gap-1 border-r pr-2">
-        <button onClick={() => editor.chain().focus().undo().run()} className="p-1.5 hover:bg-lime-100 rounded">
-          <Undo size={18} />
-        </button>
-        <button onClick={() => editor.chain().focus().redo().run()} className="p-1.5 hover:bg-lime-100 rounded">
-          <Redo size={18} />
-        </button>
-      </div>
-
-      <div className="flex gap-1 border-r pr-2">
-        <button
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          className={`p-1.5 rounded ${editor.isActive('bold') ? 'bg-lime-500 text-white' : 'hover:bg-lime-100'}`}
-        >
-          <Bold size={18} />
-        </button>
-        <button
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={`p-1.5 rounded ${editor.isActive('italic') ? 'bg-lime-500 text-white' : 'hover:bg-lime-100'}`}
-        >
-          <Italic size={18} />
-        </button>
-      </div>
-
-      <div className="flex gap-1 border-r pr-2">
-        <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          className={`p-1.5 rounded ${editor.isActive('heading', { level: 1 }) ? 'bg-lime-500 text-white' : 'hover:bg-lime-100'}`}
-        >
-          <Heading1 size={18} />
-        </button>
-        <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={`p-1.5 rounded ${editor.isActive('heading', { level: 2 }) ? 'bg-lime-500 text-white' : 'hover:bg-lime-100'}`}
-        >
-          <Heading2 size={18} />
-        </button>
-      </div>
-
-      <div className="flex gap-1 border-r pr-2">
-        <button
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={`p-1.5 rounded ${editor.isActive('bulletList') ? 'bg-lime-500 text-white' : 'hover:bg-lime-100'}`}
-        >
-          <List size={18} />
-        </button>
-        <button
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={`p-1.5 rounded ${editor.isActive('orderedList') ? 'bg-lime-500 text-white' : 'hover:bg-lime-100'}`}
-        >
-          <ListOrdered size={18} />
-        </button>
-      </div>
-
-      <div className="flex gap-1 border-r pr-2">
-        <input
-          type="color"
-          onInput={(event: any) => editor.chain().focus().setColor(event.target.value).run()}
-          value={editor.getAttributes('textStyle').color || '#000000'}
-          className="w-8 h-8 p-1 rounded cursor-pointer"
-        />
-        <button onClick={addImage} className="p-1.5 hover:bg-lime-100 rounded">
-          <ImageIcon size={18} />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-function Editor({ content, onChange, onSave }: EditorProps) {
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: [
-      StarterKit,
-      TextStyle,
-      Color,
-      Image.configure({
-        inline: true,
-        allowBase64: true,
-      }),
-    ],
-    content: content,
-    onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
-    },
-  });
-
-  React.useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      onSave();
     }
-  }, [content, editor]);
+    // Tab indentation
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const target = e.target as HTMLTextAreaElement;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      const newContent = content.substring(0, start) + '  ' + content.substring(end);
+      onChange(newContent);
+      requestAnimationFrame(() => {
+        target.selectionStart = target.selectionEnd = start + 2;
+      });
+    }
+  };
 
   return (
     <div className="w-full bg-white rounded-xl shadow-inner border border-gray-100 overflow-hidden min-h-[700px] flex flex-col">
-      <MenuBar editor={editor} onSave={onSave} />
-      <div className="px-4 md:px-12 py-8 flex-1 overflow-y-auto prose prose-slate max-w-none focus:outline-none">
-        <EditorContent editor={editor} className="w-full" />
+      <div className="border-b border-gray-200 p-2 flex gap-2 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+        <button
+          onClick={handlePreview}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded font-medium text-sm transition-colors",
+            preview
+              ? "bg-lime-500 text-white"
+              : "hover:bg-lime-100 text-gray-600"
+          )}
+        >
+          {preview ? <Code size={16} /> : <Eye size={16} />}
+          {preview ? 'Markdown' : 'Preview'}
+        </button>
+        <button onClick={addImage} className="p-1.5 hover:bg-lime-100 rounded text-gray-600">
+          <ImageIcon size={18} />
+        </button>
+        <div className="flex-1" />
+        <span className="text-xs text-gray-400 self-center mr-2">Ctrl+S로 저장</span>
       </div>
+
+      {preview ? (
+        <div
+          className="px-4 md:px-12 py-8 flex-1 overflow-y-auto prose prose-slate max-w-none"
+          dangerouslySetInnerHTML={{ __html: previewHtml }}
+        />
+      ) : (
+        <textarea
+          value={content}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="px-4 md:px-12 py-8 flex-1 w-full resize-none outline-none font-mono text-sm text-gray-800 leading-relaxed bg-transparent"
+          placeholder="Markdown으로 작성하세요..."
+          spellCheck={false}
+        />
+      )}
     </div>
   );
 }
