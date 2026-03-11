@@ -25,6 +25,8 @@ export async function GET() {
           date,
           year: new Date(date).getFullYear().toString(),
           month: (new Date(date).getMonth() + 1).toString(),
+          series: data.series || null,
+          order: data.order ?? null,
         };
       });
 
@@ -37,7 +39,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const { id, title, content, date } = data;
+    const { id, title, content, date, series, order } = data;
 
     if (!fs.existsSync(ARTICLES_PATH)) {
       fs.mkdirSync(ARTICLES_PATH, { recursive: true });
@@ -46,12 +48,26 @@ export async function POST(request: Request) {
     const fileId = id || String(Date.now());
     const filePath = path.join(ARTICLES_PATH, `${fileId}.md`);
 
-    const frontmatter = [
+    // 기존 파일이 있으면 frontmatter의 series/order를 보존
+    let existingSeries = series;
+    let existingOrder = order;
+    if (existingSeries === undefined && fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const { data: existing } = matter(raw);
+      if (existing.series) existingSeries = existing.series;
+      if (existing.order != null) existingOrder = existing.order;
+    }
+
+    const frontmatterLines = [
       '---',
       `title: "${(title || 'Untitled').replace(/"/g, '\\"')}"`,
       `date: "${date || new Date().toISOString()}"`,
-      '---',
-    ].join('\n');
+    ];
+    if (existingSeries) frontmatterLines.push(`series: "${existingSeries}"`);
+    if (existingOrder != null) frontmatterLines.push(`order: ${existingOrder}`);
+    frontmatterLines.push('---');
+
+    const frontmatter = frontmatterLines.join('\n');
 
     const md = frontmatter + '\n\n' + (content || '');
     fs.writeFileSync(filePath, md, 'utf8');

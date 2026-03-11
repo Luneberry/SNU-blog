@@ -25,12 +25,35 @@ export async function GET(
     const isHtml = content.trimStart().startsWith('<');
     const html = isHtml ? content : await marked(content);
 
+    // 같은 시리즈의 글 목록 조회
+    let seriesArticles: { id: string; title: string; order: number | null }[] = [];
+    if (data.series) {
+      const files = fs.readdirSync(ARTICLES_PATH).filter(f => f.endsWith('.md'));
+      seriesArticles = files
+        .map(f => {
+          const r = fs.readFileSync(path.join(ARTICLES_PATH, f), 'utf8');
+          const { data: d } = matter(r);
+          return { id: f.replace('.md', ''), title: d.title || 'Untitled', series: d.series, order: d.order ?? null, date: d.date };
+        })
+        .filter(a => a.series === data.series)
+        .sort((a, b) => {
+          if (a.order != null && b.order != null) return a.order - b.order;
+          if (a.order != null) return -1;
+          if (b.order != null) return 1;
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        })
+        .map(({ id: aid, title: atitle, order }) => ({ id: aid, title: atitle, order }));
+    }
+
     return NextResponse.json({
       id,
       title: data.title || 'Untitled',
       date: data.date || new Date().toISOString(),
       content,      // raw markdown (에디터용)
       html,         // rendered HTML (뷰용)
+      series: data.series || null,
+      order: data.order ?? null,
+      seriesArticles,
     });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch article' }, { status: 500 });

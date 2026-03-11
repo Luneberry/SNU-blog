@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar, { Category } from '@/components/Sidebar';
 import Editor from '@/components/Editor';
 import { cn } from '@/lib/utils';
-import { Plus, Clock, ChevronRight, ArrowLeft, Edit3, Save, Trash2, Pin } from 'lucide-react';
+import { Plus, Clock, ChevronRight, ChevronLeft, ArrowLeft, Edit3, Save, Trash2, Pin, BookOpen } from 'lucide-react';
 
 export default function Home() {
   const [articles, setArticles] = useState<any[]>([]);
@@ -308,6 +308,43 @@ export default function Home() {
               </div>
 
               <h1 className="text-5xl font-black text-gray-900 leading-tight border-b border-gray-100 pb-8">{currentArticle.title}</h1>
+
+              {/* Series Navigation */}
+              {currentArticle.series && currentArticle.seriesArticles?.length > 1 && (() => {
+                const items = currentArticle.seriesArticles;
+                const currentIdx = items.findIndex((a: any) => a.id === currentArticle.id);
+                const prev = currentIdx > 0 ? items[currentIdx - 1] : null;
+                const next = currentIdx < items.length - 1 ? items[currentIdx + 1] : null;
+                return (
+                  <div className="my-6 p-4 bg-lime-50/60 border border-lime-200 rounded-xl">
+                    <div className="flex items-center gap-2 text-sm font-bold text-lime-700 mb-3">
+                      <BookOpen size={16} />
+                      {currentArticle.series}
+                      <span className="text-lime-500 font-normal">({currentIdx + 1} / {items.length})</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      {prev ? (
+                        <button
+                          onClick={() => handleSelectArticle(prev.id)}
+                          className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-lime-600 transition-colors truncate max-w-[45%]"
+                        >
+                          <ChevronLeft size={16} className="flex-shrink-0" />
+                          <span className="truncate">{prev.title}</span>
+                        </button>
+                      ) : <div />}
+                      {next ? (
+                        <button
+                          onClick={() => handleSelectArticle(next.id)}
+                          className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-lime-600 transition-colors truncate max-w-[45%] ml-auto"
+                        >
+                          <span className="truncate">{next.title}</span>
+                          <ChevronRight size={16} className="flex-shrink-0" />
+                        </button>
+                      ) : <div />}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div
                 className="prose prose-slate max-w-none py-10 min-h-[500px]"
