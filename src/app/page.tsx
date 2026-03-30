@@ -13,9 +13,9 @@ export default function Home() {
   const [currentArticle, setCurrentArticle] = useState<any>({
     title: '',
     content: '',
-    date: new Date().toISOString()
+    date: ''
   });
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
